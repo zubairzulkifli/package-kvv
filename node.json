@@ -8,7 +8,7 @@
         "ui_width": 4,
         "name": "background_color",
         "type": "color",
-        "default": [1,1,1,1]
+        "default": [0,0,0,1]
     }, {
         "title": "Font",
         "ui_width": 4,
