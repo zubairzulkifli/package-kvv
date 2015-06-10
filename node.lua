@@ -21,7 +21,7 @@ util.data_mapper{
     end;
 }
 
-function unixnow()
+local function unixnow()
     return base_time + sys.now()
 end
 

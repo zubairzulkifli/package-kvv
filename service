@@ -10,6 +10,8 @@ from itertools import islice
 
 from hosted import CONFIG, NODE, UPSTREAM
 
+CONFIG.restart_on_update()
+
 minutes = re.compile("([0-9]+) min")
 exact = re.compile("([0-9]+):([0-9]+)")
 
