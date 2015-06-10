@@ -1,0 +1,5 @@
+{
+    "background_color": {"r": 0, "g": 0, "b": 0, "a": 0}, 
+    "font":{"asset_name": "silkscreen.ttf"}, 
+    "stop": "de:8212:65"
+}

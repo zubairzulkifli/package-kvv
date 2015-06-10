@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+import re
+import traceback
+import time
+import json
+import urllib2
+import pytz
+from datetime import datetime, timedelta
+from itertools import islice
+
+from hosted import CONFIG, NODE, UPSTREAM
+
+minutes = re.compile("([0-9]+) min")
+exact = re.compile("([0-9]+):([0-9]+)")
+
+def current_time():
+    timezone = pytz.timezone("Europe/Berlin")
+    now = datetime.utcnow()
+    now = now.replace(tzinfo=pytz.utc)
+    now = now.astimezone(timezone)
+    now = now.replace(tzinfo=None)
+    return now
+
+def to_unixtimestamp(dt):
+    return int(time.mktime(dt.timetuple()))
+
+def regenerate():
+    now = current_time()
+
+    def from_html(h):
+        r = round(1.0 / 255 * int(h[0:2], 16), 2)
+        g = round(1.0 / 255 * int(h[2:4], 16), 2)
+        b = round(1.0 / 255 * int(h[4:6], 16), 2)
+        return r, g, b
+
+    mapping = {
+        "1"   : from_html("ed1c24"),
+        "2"   : from_html("0071bc"),
+        "4"   : from_html("ffcb04"),
+        "5"   : from_html("00c0f3"),
+        "6"   : from_html("80c342"),
+        "6E"  : from_html("80c342"),
+        "S1"  : from_html("00a76d"),
+        "S11" : from_html("00a76d"),
+        "S2"  : from_html("a068aa"),
+        "S4"  : from_html("9f184c"),
+        "S41" : from_html("9f184c"),
+        "S5"  : from_html("f8aca5"),
+    }
+
+    def parse(stop_info):
+        departures = []
+        for dep in stop_info['departures']:
+            time = dep['time']
+
+            if time == '0':
+                delta = 0
+            elif minutes.search(time):
+                m = minutes.match(time)
+                delta = 60 * int(m.group(1))
+            elif exact.search(time):
+                t = exact.match(time)
+                abfahrt = now.replace(hour=int(t.group(1)), minute=int(t.group(2)), second=0)
+                if abfahrt < now:
+                    abfahrt += timedelta(days=1)
+                delta = (abfahrt - now).seconds
+
+            date = now + timedelta(seconds = delta)
+            direction = dep['destination']
+
+            r, g, b = mapping.get(dep['route'], (0,0,0))
+
+            departures.append(((date, direction), dict(
+                color_r = r,
+                color_g = g,
+                color_b = b,
+                symbol = dep['route'],
+                date = to_unixtimestamp(date),
+                direction = direction,
+                nice_date = date.strftime('%H:%M'),
+                more = "",
+                stop = stop_info['stopName'],
+            )))
+
+        return departures
+
+    def download(stop):
+        url = "http://live.kvv.de/webapp/departures/bystop/%s?maxInfos=0&key=377d840e54b59adbe53608ba1aad70e8" % stop
+        return urllib2.urlopen(url).read()
+
+    departures = []
+    departures.extend(parse(json.loads(download(CONFIG['stop']))))
+
+    departures.sort()
+    departures = [info for sort_key, info in departures]
+
+    # find next run
+    for n, dep in enumerate(departures):
+        for follow in islice(departures, n+1, None):
+            if dep['direction'] == follow['direction'] and \
+                    dep['stop'] == follow['stop'] and \
+                    dep['symbol'] == follow['symbol']:
+                dep['next_date'] = follow['date']
+                dep['next_nice_date'] = follow['nice_date']
+                break
+
+    # find duplicates
+    for n, dep in enumerate(departures):
+        for follow in islice(departures, n+1, None):
+            if dep['direction'] == follow['direction'] and \
+                    dep['stop'] != follow['stop'] and \
+                    dep['symbol'] == follow['symbol'] and \
+                    abs(dep['date'] - follow['date']) < 5 * 60:
+                print "duplicate:"
+                print dep
+                print follow
+                print
+                dep['duplicate'] = True
+                break
+
+    departures = [dep for dep in departures if not 'duplicate' in dep]
+
+    # pprint(departures, width=300)
+
+    with file("departures.json", "wb") as f:
+        f.write(json.dumps(departures,ensure_ascii=False).encode("utf8"))
+
+def send_clock():
+    NODE['/clock/set'](to_unixtimestamp(current_time()))
+
+def idle(seconds):
+    end = time.time() + seconds
+    while time.time() < end:
+        send_clock()
+        time.sleep(5)
+
+def main():
+    while 1:
+        try:
+            regenerate()
+            idle(360)
+        except Exception:
+            traceback.print_exc()
+            time.sleep(30)
+
+if __name__ == "__main__":
+    main()
