@@ -8,7 +8,7 @@ import pytz
 from datetime import datetime, timedelta
 from itertools import islice
 
-from hosted import CONFIG, NODE, UPSTREAM
+from hosted import CONFIG, NODE
 
 CONFIG.restart_on_update()
 
@@ -87,7 +87,7 @@ def regenerate():
         return departures
 
     def download(stop):
-        url = "http://live.kvv.de/webapp/departures/bystop/%s?maxInfos=0&key=377d840e54b59adbe53608ba1aad70e8" % stop
+        url = "https://live.kvv.de/webapp/departures/bystop/%s?maxInfos=0&key=377d840e54b59adbe53608ba1aad70e8" % stop
         return urllib2.urlopen(url).read()
 
     departures = []
