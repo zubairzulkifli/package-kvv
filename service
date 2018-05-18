@@ -87,7 +87,8 @@ def regenerate():
         return departures
 
     def download(stop):
-        url = "https://live.kvv.de/webapp/departures/bystop/%s?maxInfos=0&key=377d840e54b59adbe53608ba1aad70e8" % stop
+        
+        url = "https://2.vbb.transport.rest/stations?query=%s" % stop
         return urllib2.urlopen(url).read()
 
     departures = []
